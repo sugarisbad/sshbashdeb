@@ -6,24 +6,34 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
+# Проверка доступности Yandex зеркала
+echo "Проверка доступности зеркала mirror.yandex.ru..."
+if ! ping -c 2 mirror.yandex.ru &> /dev/null; then
+    echo "Ошибка: Зеркало mirror.yandex.ru недоступно. Проверьте интернет-соединение." >&2
+    exit 1
+fi
+
 # Создание резервной копии sources.list
 cp /etc/apt/sources.list /etc/apt/sources.list.bak
-echo "Резервная копия /etc/apt/sources.list создана."
+echo "Резервная копия /etc/apt/sources.list создана: /etc/apt/sources.list.bak"
 
-# Замена зеркала на deb.debian.org (можно изменить на другое, например, mirror.yandex.ru)
+# Замена зеркала на Yandex
 cat << EOF > /etc/apt/sources.list
-deb http://deb.debian.org/debian/ bookworm main contrib non-free
-deb http://deb.debian.org/debian/ bookworm-updates main contrib non-free
-deb http://deb.debian.org/debian-security bookworm-security main contrib non-free
+deb http://mirror.yandex.ru/debian/ bookworm main contrib non-free
+deb http://mirror.yandex.ru/debian/ bookworm-updates main contrib non-free
+deb http://security.debian.org/debian-security bookworm-security main contrib non-free
 EOF
+
+echo "Используются Yandex-зеркала для репозиториев Debian."
 
 # Обновление списка пакетов
 echo "Обновление списка пакетов..."
 apt update
 if [ $? -eq 0 ]; then
-    echo "Список пакетов успешно обновлен."
+    echo "Список пакетов успешно обновлен через Yandex-зеркало."
 else
-    echo "Ошибка при обновлении списка пакетов. Проверьте интернет-соединение или зеркало." >&2
+    echo "Ошибка при обновлении списка пакетов. Восстановите резервную копию:" >&2
+    echo "mv /etc/apt/sources.list.bak /etc/apt/sources.list" >&2
     exit 1
 fi
 
@@ -38,8 +48,8 @@ else
 fi
 
 # Запуск и включение SSH-сервера
-systemctl enable ssh
-systemctl start ssh
+systemctl enable --now ssh
+echo "SSH-сервер включен в автозагрузку и запущен."
 
 # Проверка статуса SSH
 if systemctl is-active --quiet ssh; then
@@ -57,4 +67,6 @@ else
     exit 1
 fi
 
-echo "Настройка завершена. Попробуйте подключиться: ssh user@<IP-адреса-сервера>"
+echo -e "\nНастройка завершена успешно!"
+echo "Попробуйте подключиться: ssh user@$(hostname -I | awk '{print $1}')"
+echo "Для отката изменений используйте: mv /etc/apt/sources.list.bak /etc/apt/sources.list"
